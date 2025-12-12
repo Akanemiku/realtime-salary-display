@@ -1,0 +1,135 @@
+/* OKX扁平化风格 */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 简单的淡入动画 */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes number-change {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+}
+
+.animate-number-change {
+    animation: number-change 0.2s ease-out;
+}
+
+/* 数字显示 - OKX风格 */
+#moneyDisplay {
+    font-family: 'DIN Alternate', 'Arial', sans-serif;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: all 0.2s ease;
+}
+
+/* 状态指示器 - 扁平化 */
+.status-running {
+    background: rgba(0, 184, 148, 0.1) !important;
+    border: 1px solid rgba(0, 184, 148, 0.3) !important;
+}
+
+.status-running span {
+    background: #00b894 !important;
+}
+
+.status-stopped {
+    background: rgba(255, 107, 107, 0.1) !important;
+    border: 1px solid rgba(255, 107, 107, 0.3) !important;
+}
+
+.status-stopped span {
+    background: #ff6b6b !important;
+}
+
+/* 按钮样式 - 扁平化 */
+button {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* 输入框样式 - OKX风格 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+input:focus {
+    outline: none;
+}
+
+/* 卡片样式 - 扁平化 */
+.card-flat {
+    transition: all 0.2s ease;
+}
+
+.card-flat:hover {
+    transform: translateY(-2px);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    #moneyDisplay {
+        font-size: 3rem;
+    }
+    
+    #currencyUnit {
+        font-size: 1.5rem;
+    }
+}
+
+/* 滚动条样式 - OKX风格 */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}

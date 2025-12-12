@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时工资计算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body class="min-h-screen bg-[#0d0d0d]">
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- 标题区域 - OKX风格 -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-semibold text-white">
+                实时工资展示
+            </h1>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <!-- 左侧：设置面板 -->
+            <div class="lg:col-span-1">
+                <div class="bg-[#1a1a1a] rounded-lg p-5 border border-[#2a2a2a]">
+                    <h2 class="text-base font-medium text-white mb-5">
+                        设置参数
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <!-- 日薪输入 -->
+                        <div>
+                            <label class="block text-[#8c8c8c] text-xs mb-2">
+                                日薪 (¥)
+                            </label>
+                            <input type="number" id="dailySalary" 
+                                   class="w-full px-3 py-2.5 rounded bg-[#0d0d0d] text-white placeholder-[#4a4a4a] border border-[#2a2a2a] focus:border-[#00b894] transition-colors text-sm"
+                                   placeholder="请输入日薪" value="500">
+                        </div>
+
+                        <!-- 工作开始时间 -->
+                        <div>
+                            <label class="block text-[#8c8c8c] text-xs mb-2">
+                                工作开始时间
+                            </label>
+                            <input type="time" id="startTime" 
+                                   class="w-full px-3 py-2.5 rounded bg-[#0d0d0d] text-white border border-[#2a2a2a] focus:border-[#00b894] transition-colors text-sm"
+                                   value="09:00">
+                        </div>
+
+                        <!-- 工作结束时间 -->
+                        <div>
+                            <label class="block text-[#8c8c8c] text-xs mb-2">
+                                工作结束时间
+                            </label>
+                            <input type="time" id="endTime" 
+                                   class="w-full px-3 py-2.5 rounded bg-[#0d0d0d] text-white border border-[#2a2a2a] focus:border-[#00b894] transition-colors text-sm"
+                                   value="18:00">
+                        </div>
+
+                        <!-- 更新频率 -->
+                        <div>
+                            <label class="block text-[#8c8c8c] text-xs mb-2">
+                                更新频率 (毫秒)
+                            </label>
+                            <input type="number" id="updateFrequency" 
+                                   class="w-full px-3 py-2.5 rounded bg-[#0d0d0d] text-white placeholder-[#4a4a4a] border border-[#2a2a2a] focus:border-[#00b894] transition-colors text-sm"
+                                   placeholder="更新频率" value="500" min="100" step="100">
+                            <p class="text-[#4a4a4a] text-xs mt-1.5">建议: 100-1000ms</p>
+                        </div>
+
+                        <!-- 开始按钮 -->
+                        <button id="startBtn" 
+                                class="w-full bg-[#00b894] text-white font-medium py-3 rounded text-sm mt-2">
+                            开始计算
+                        </button>
+
+                        <!-- 停止按钮 -->
+                        <button id="stopBtn" 
+                                class="w-full bg-[#ff6b6b] text-white font-medium py-3 rounded text-sm mt-2 hidden">
+                            停止计算
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：显示区域 -->
+            <div class="lg:col-span-2">
+                <!-- 主显示卡片 -->
+                <div class="bg-[#1a1a1a] rounded-lg p-6 border border-[#2a2a2a] mb-4">
+                    <div class="text-center">
+                        <div class="flex justify-center items-center mb-6">
+                            <h2 class="text-sm font-medium text-[#8c8c8c]">今日已赚</h2>
+                            <button id="currencyToggle" 
+                                    class="ml-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white text-xs font-medium px-3 py-1.5 rounded">
+                                <span id="currencySymbol">¥ RMB</span>
+                            </button>
+                        </div>
+                        
+                        <!-- 金额显示 -->
+                        <div class="relative mb-6">
+                            <div id="moneyDisplay" class="text-6xl font-bold text-white mb-2">
+                                0.00
+                            </div>
+                            <div id="currencyUnit" class="text-lg font-medium text-[#8c8c8c]">RMB</div>
+                        </div>
+
+                        <!-- 状态指示器 -->
+                        <div id="statusIndicator" class="inline-flex items-center px-4 py-2 rounded bg-[#2a2a2a] text-[#8c8c8c] text-xs font-medium border border-[#3a3a3a]">
+                            <span class="w-2 h-2 bg-[#4a4a4a] rounded-full mr-2"></span>
+                            未开始
+                        </div>
+                    </div>
+                </div>
+
+                <!-- K线走势图 -->
+                <div class="bg-[#1a1a1a] rounded-lg p-5 border border-[#2a2a2a] mb-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-medium text-white">工资走势</h3>
+                        <div class="flex items-center space-x-2 text-xs">
+                            <span class="text-[#8c8c8c]">实时更新</span>
+                            <span class="w-2 h-2 bg-[#00b894] rounded-full animate-pulse"></span>
+                        </div>
+                    </div>
+                    <div id="salaryChart" style="width: 100%; height: 300px;"></div>
+                </div>
+
+                <!-- 统计信息卡片 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <!-- 工作时长 -->
+                    <div class="bg-[#1a1a1a] rounded-lg p-5 border border-[#2a2a2a] card-flat">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <p class="text-[#8c8c8c] text-xs mb-2">工作时长</p>
+                                <p id="workDuration" class="text-2xl font-semibold text-white">0小时</p>
+                            </div>
+                            <div class="w-10 h-10 flex items-center justify-center bg-[#0d0d0d] rounded">
+                                <i class="fas fa-clock text-lg text-[#00b894]"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 时薪 -->
+                    <div class="bg-[#1a1a1a] rounded-lg p-5 border border-[#2a2a2a] card-flat">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <p class="text-[#8c8c8c] text-xs mb-2">时薪</p>
+                                <p id="hourlyRate" class="text-2xl font-semibold text-white">¥0</p>
+                            </div>
+                            <div class="w-10 h-10 flex items-center justify-center bg-[#0d0d0d] rounded">
+                                <i class="fas fa-coins text-lg text-[#00b894]"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 工作完成进度 -->
+                    <div class="bg-[#1a1a1a] rounded-lg p-5 border border-[#2a2a2a] card-flat">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex-1">
+                                <p class="text-[#8c8c8c] text-xs mb-2">工作完成进度</p>
+                                <p id="progressPercent" class="text-2xl font-semibold text-white">0.0%</p>
+                            </div>
+                            <div class="w-10 h-10 flex items-center justify-center bg-[#0d0d0d] rounded">
+                                <i class="fas fa-chart-line text-lg text-[#00b894]"></i>
+                            </div>
+                        </div>
+                        <div class="w-full bg-[#0d0d0d] rounded-full h-2 overflow-hidden">
+                            <div id="progressBar" class="bg-[#00b894] h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
