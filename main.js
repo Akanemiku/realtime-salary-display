@@ -361,6 +361,10 @@ class SalaryCalculator {
                     formatter: (value) => {
                         // 只显示小时部分
                         return value.split(':')[0];
+                    },
+                    interval: (index, value) => {
+                        // 只在整点小时显示标签（分钟为00）
+                        return value.endsWith(':00');
                     }
                 },
                 splitLine: {
