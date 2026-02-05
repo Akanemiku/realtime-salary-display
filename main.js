@@ -317,7 +317,8 @@ class SalaryCalculator {
             this.chartData15m = this.chartData15m.map(d => ({
                 time: d.time,
                 value: Math.round((d.value / this.exchangeRate) * 100) / 100,
-                timestamp: d.timestamp
+                timestamp: d.timestamp,
+                isRealtime: d.isRealtime
             }));
         } else if (oldCurrency === 'USD' && this.currentCurrency === 'RMB') {
             // USD -> RMB，精确到1元
@@ -330,7 +331,8 @@ class SalaryCalculator {
             this.chartData15m = this.chartData15m.map(d => ({
                 time: d.time,
                 value: Math.round(d.value * this.exchangeRate * 100) / 100,
-                timestamp: d.timestamp
+                timestamp: d.timestamp,
+                isRealtime: d.isRealtime
             }));
         }
         
@@ -602,8 +604,9 @@ class SalaryCalculator {
             activeBtn.classList.remove('text-[#8c8c8c]');
         }
         
-        // 重新渲染图表
-        this.updateChartDisplay();
+        // 切换级别时，先清除图表所有元素，再强制刷新，避免动画过渡导致的显示异常
+        this.chart.clear();
+        this.updateChartDisplay(true);
     }
     
     // 获取当前小时的数据（用于1小时级别）
@@ -626,7 +629,7 @@ class SalaryCalculator {
         return { data: hourData, minValue: minValue };
     }
     
-    // 生成15分钟级别的历史数据（每10秒一个点）
+    // 生成15分钟级别的历史数据（每1分钟一个点）
     generate15mHistoricalData() {
         const now = this.getCurrentTime();
         const currentTimeInMs = now.getHours() * 3600000 + now.getMinutes() * 60000 + now.getSeconds() * 1000;
@@ -645,14 +648,14 @@ class SalaryCalculator {
         // 如果窗口开始时间早于工作开始时间，使用工作开始时间
         const effectiveStartMs = Math.max(windowStartMs, startTimeInMs);
         
-        // 计算从窗口开始到现在经过了多少个10秒
-        const elapsedSlots = Math.floor((currentTimeInMs - effectiveStartMs) / 10000);
+        // 计算从窗口开始到现在经过了多少分钟
+        const elapsedSlots = Math.floor((currentTimeInMs - effectiveStartMs) / 60000);
         const totalMinutes = this.calculateTotalMinutes();
         
-        // 为每10秒生成一个数据点（最多保留最近90个点，即15分钟）
-        const startSlot = Math.max(0, elapsedSlots - 89);
+        // 为每1分钟生成一个数据点（最多保留最近15个点，即15分钟）
+        const startSlot = Math.max(0, elapsedSlots - 14);
         for (let i = startSlot; i <= elapsedSlots; i++) {
-            const timeInMs = effectiveStartMs + (i * 10000);
+            const timeInMs = effectiveStartMs + (i * 60000);
             
             // 计算该时间点的工资
             const workedMs = timeInMs - startTimeInMs;
@@ -679,12 +682,13 @@ class SalaryCalculator {
             this.chartData15m.push({
                 time: timeStr,
                 value: displayValue,
-                timestamp: timeInMs
+                timestamp: timeInMs,
+                isRealtime: false
             });
         }
     }
     
-    // 更新15分钟级别数据（每秒更新显示，每10秒一个新点）
+    // 更新15分钟级别数据（每秒更新显示，每1分钟一个新点）
     update15mData(value) {
         const now = new Date();
         const currentTimeInMs = now.getHours() * 3600000 + now.getMinutes() * 60000 + now.getSeconds() * 1000;
@@ -708,11 +712,9 @@ class SalaryCalculator {
             }
         }
         
-        // 计算当前时间对应的10秒槽位
+        // 计算当前时间对应的分钟槽位
         const effectiveStartMs = Math.max(windowStartMs, startTimeInMs);
-        const currentSecond = now.getSeconds();
-        const currentSlotSecond = Math.floor(currentSecond / 10) * 10; // 对齐到10秒
-        const currentTimestamp = now.getHours() * 3600000 + now.getMinutes() * 60000 + currentSlotSecond * 1000;
+        const currentTimestamp = now.getHours() * 3600000 + now.getMinutes() * 60000; // 对齐到分钟
         
         // 精确度处理
         let preciseValue;
@@ -722,42 +724,53 @@ class SalaryCalculator {
             preciseValue = Math.round(value * 100) / 100;
         }
         
-        // 计算当前10秒槽位对应的时间字符串
+        // 计算当前分钟槽位对应的时间字符串
         const hours = now.getHours();
         const minutes = now.getMinutes();
-        const seconds = currentSlotSecond;
-        const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
         
-        // 检查是否需要添加新点（每10秒一个新点）
-        if (this.chartData15m.length === 0 || this.chartData15m[this.chartData15m.length - 1].timestamp < currentTimestamp) {
+        // 检查是否需要添加新点（每1分钟一个新点）
+        // 注意：过滤掉实时点（isRealtime标记的点）再判断
+        const fixedPoints = this.chartData15m.filter(d => !d.isRealtime);
+        
+        if (fixedPoints.length === 0 || fixedPoints[fixedPoints.length - 1].timestamp < currentTimestamp) {
+            // 添加新的固定点
+            this.chartData15m = fixedPoints; // 先移除旧的实时点
             this.chartData15m.push({
                 time: timeStr,
                 value: preciseValue,
-                timestamp: currentTimestamp
+                timestamp: currentTimestamp,
+                isRealtime: false
             });
             
-            // 限制最多90个点（15分钟 = 90个10秒）
-            if (this.chartData15m.length > 90) {
+            // 限制最多15个点（15分钟 = 15个1分钟）
+            if (this.chartData15m.length > 15) {
                 this.chartData15m.shift();
             }
-            
-            // 如果当前是15分钟级别，更新图表
-            if (this.timeLevel === '15m') {
-                this.updateChartDisplay();
-            }
-        } else {
-            // 更新最后一个点的值，并刷新图表（实现实时效果）
-            this.chartData15m[this.chartData15m.length - 1].value = preciseValue;
-            
-            // 即使是同一秒内也刷新图表，实现实时变化效果
-            if (this.timeLevel === '15m') {
-                this.updateChartDisplay();
-            }
+        }
+        
+        // 始终更新/添加实时延伸点（显示当前秒的位置）
+        // 移除旧的实时点
+        this.chartData15m = this.chartData15m.filter(d => !d.isRealtime);
+        
+        // 添加新的实时点（当前精确时间，精确到秒）
+        const realtimeSeconds = now.getSeconds();
+        const realtimeTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(realtimeSeconds).padStart(2, '0')}`;
+        this.chartData15m.push({
+            time: realtimeTimeStr,
+            value: preciseValue,
+            timestamp: currentTimeInMs,
+            isRealtime: true // 标记为实时点
+        });
+        
+        // 如果当前是15分钟级别，更新图表
+        if (this.timeLevel === '15m') {
+            this.updateChartDisplay();
         }
     }
     
     // 更新图表显示
-    updateChartDisplay() {
+    updateChartDisplay(forceRefresh = false) {
         // 根据时间级别选择数据
         let displayData;
         let yAxisMin = 0;
@@ -767,19 +780,40 @@ class SalaryCalculator {
         if (this.timeLevel === '15m') {
             displayData = this.chartData15m;
             
-            // 15分钟级别：Y轴动态范围
+            // 15分钟级别：Y轴动态范围，让变化更明显像股票一样
             if (displayData.length > 0) {
-                const minVal = displayData[0].value;
-                const maxVal = displayData[displayData.length - 1].value;
+                // 获取所有数据的最小值和最大值
+                const allValues = displayData.map(d => d.value);
+                const dataMinVal = Math.min(...allValues);
+                const dataMaxVal = Math.max(...allValues);
                 
-                const range = maxVal - minVal;
-                const padding = Math.max(range * 0.1, this.currentCurrency === 'RMB' ? 0.5 : 0.05);
+                // 计算实际数据范围
+                const dataRange = dataMaxVal - dataMinVal;
                 
-                yAxisMin = Math.max(0, minVal - padding);
-                yAxisMax = maxVal + padding;
+                // 为了让图表更有动感，设置一个最小显示范围
+                // 基于每秒赚多少钱来计算合适的显示范围
+                const totalMinutes = this.calculateTotalMinutes();
+                const earnPerSecond = this.dailySalary / totalMinutes / 60;
+                let displayEarnPerSecond = earnPerSecond;
+                if (this.currentCurrency === 'USD') {
+                    displayEarnPerSecond = earnPerSecond / this.exchangeRate;
+                }
+                
+                // 最小显示范围为30秒的收入变化，这样每秒的变化会很明显
+                const minDisplayRange = displayEarnPerSecond * 30;
+                
+                // 使用实际范围和最小范围中的较大值
+                const displayRange = Math.max(dataRange, minDisplayRange);
+                
+                // 以当前值为中心，上下各留一半范围
+                const currentVal = dataMaxVal;
+                const padding = displayRange * 0.1;
+                
+                yAxisMin = Math.max(0, currentVal - displayRange - padding);
+                yAxisMax = currentVal + padding;
                 
                 // 15分钟级别精确度更高
-                minInterval = this.currentCurrency === 'RMB' ? 0.1 : 0.01;
+                minInterval = this.currentCurrency === 'RMB' ? 0.01 : 0.001;
             }
         } else if (this.timeLevel === '1h') {
             const hourResult = this.getCurrentHourData();
@@ -825,13 +859,25 @@ class SalaryCalculator {
         }
         
         const times = displayData.map(d => d.time);
-        const values = displayData.map(d => d.value);
         
         // 根据时间级别调整X轴标签显示
         const is15mLevel = this.timeLevel === '15m';
         const isHourLevel = this.timeLevel === '1h';
         
-        this.chart.setOption({
+        // 生成series数据（15分钟级别需要为每个点单独设置symbolSize）
+        let seriesData;
+        if (is15mLevel) {
+            // 为每个点创建包含value和symbolSize的对象
+            seriesData = displayData.map(d => ({
+                value: d.value,
+                symbolSize: d.isRealtime ? 0 : 6 // 实时点不显示圆点，固定点显示
+            }));
+        } else {
+            seriesData = displayData.map(d => d.value);
+        }
+        
+        // 构建更新配置
+        const updateOption = {
             xAxis: {
                 data: times,
                 axisLabel: {
@@ -854,12 +900,12 @@ class SalaryCalculator {
                     },
                     interval: (index, value) => {
                         if (is15mLevel) {
-                            // 15分钟级别：每30秒显示一次标签
+                            // 15分钟级别：每1分钟显示一次标签
                             // 时间格式为 HH:MM:SS
                             const parts = value.split(':');
                             if (parts.length === 3) {
                                 const sec = parseInt(parts[2]);
-                                return sec === 0 || sec === 30; // 每30秒显示一次（00, 30）
+                                return sec === 0; // 只在整分钟显示
                             }
                             return false;
                         }
@@ -879,9 +925,129 @@ class SalaryCalculator {
                 minInterval: minInterval
             },
             series: [{
-                data: values
-            }]
-        });
+                data: seriesData,
+                symbolSize: is15mLevel ? undefined : 6 // 15分钟级别由数据项单独控制
+            }],
+            animation: forceRefresh ? false : is15mLevel, // 强制刷新时禁用动画
+            animationDuration: is15mLevel ? 300 : 0,
+            animationEasing: 'linear'
+        };
+        
+        // 如果是强制刷新（切换级别后），需要提供完整配置（因为之前调用了chart.clear()）
+        if (forceRefresh) {
+            const fullOption = {
+                backgroundColor: 'transparent',
+                grid: {
+                    left: '5%',
+                    right: '3%',
+                    top: '10%',
+                    bottom: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    ...updateOption.xAxis,
+                    axisLine: {
+                        lineStyle: {
+                            color: '#2a2a2a'
+                        }
+                    },
+                    splitLine: {
+                        show: false
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    ...updateOption.yAxis,
+                    axisLine: {
+                        show: false
+                    },
+                    axisTick: {
+                        show: false
+                    },
+                    axisLabel: {
+                        color: '#8c8c8c',
+                        fontSize: 11,
+                        formatter: (value) => {
+                            if (this.currentCurrency === 'RMB') {
+                                return Math.floor(value);
+                            } else {
+                                return value.toFixed(1);
+                            }
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: '#2a2a2a',
+                            type: 'dashed'
+                        }
+                    },
+                    scale: false
+                },
+                series: [{
+                    name: '工资',
+                    type: 'line',
+                    ...updateOption.series[0],
+                    smooth: true,
+                    symbol: 'circle',
+                    lineStyle: {
+                        color: '#00b894',
+                        width: 2
+                    },
+                    itemStyle: {
+                        color: '#00b894',
+                        borderColor: '#00b894',
+                        borderWidth: 2
+                    },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [{
+                                offset: 0,
+                                color: 'rgba(0, 184, 148, 0.3)'
+                            }, {
+                                offset: 1,
+                                color: 'rgba(0, 184, 148, 0.05)'
+                            }]
+                        }
+                    },
+                    emphasis: {
+                        focus: 'series',
+                        itemStyle: {
+                            color: '#00b894',
+                            borderColor: '#fff',
+                            borderWidth: 2,
+                            shadowBlur: 10,
+                            shadowColor: 'rgba(0, 184, 148, 0.5)'
+                        }
+                    }
+                }],
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#2a2a2a',
+                    borderWidth: 1,
+                    textStyle: {
+                        color: '#fff',
+                        fontSize: 12
+                    },
+                    formatter: (params) => {
+                        const param = params[0];
+                        const currencySymbol = this.currentCurrency === 'RMB' ? '¥' : '$';
+                        const precision = this.currentCurrency === 'RMB' ? 0 : 1;
+                        return `${param.name}<br/>${currencySymbol}${param.value.toFixed(precision)}`;
+                    }
+                },
+                animation: false // 强制刷新时禁用动画
+            };
+            this.chart.setOption(fullOption);
+        } else {
+            this.chart.setOption(updateOption);
+        }
     }
     
     // 保存数据到Cookie
