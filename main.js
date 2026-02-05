@@ -626,7 +626,7 @@ class SalaryCalculator {
         return { data: hourData, minValue: minValue };
     }
     
-    // 生成15分钟级别的历史数据（每秒一个点）
+    // 生成15分钟级别的历史数据（每10秒一个点）
     generate15mHistoricalData() {
         const now = this.getCurrentTime();
         const currentTimeInMs = now.getHours() * 3600000 + now.getMinutes() * 60000 + now.getSeconds() * 1000;
@@ -645,14 +645,14 @@ class SalaryCalculator {
         // 如果窗口开始时间早于工作开始时间，使用工作开始时间
         const effectiveStartMs = Math.max(windowStartMs, startTimeInMs);
         
-        // 计算从窗口开始到现在经过了多少秒
-        const elapsedSeconds = Math.floor((currentTimeInMs - effectiveStartMs) / 1000);
+        // 计算从窗口开始到现在经过了多少个10秒
+        const elapsedSlots = Math.floor((currentTimeInMs - effectiveStartMs) / 10000);
         const totalMinutes = this.calculateTotalMinutes();
         
-        // 为每秒生成一个数据点（最多保留最近900个点，即15分钟）
-        const startSecond = Math.max(0, elapsedSeconds - 899);
-        for (let i = startSecond; i <= elapsedSeconds; i++) {
-            const timeInMs = effectiveStartMs + (i * 1000);
+        // 为每10秒生成一个数据点（最多保留最近90个点，即15分钟）
+        const startSlot = Math.max(0, elapsedSlots - 89);
+        for (let i = startSlot; i <= elapsedSlots; i++) {
+            const timeInMs = effectiveStartMs + (i * 10000);
             
             // 计算该时间点的工资
             const workedMs = timeInMs - startTimeInMs;
@@ -684,7 +684,7 @@ class SalaryCalculator {
         }
     }
     
-    // 更新15分钟级别数据（每秒更新）
+    // 更新15分钟级别数据（每秒更新显示，每10秒一个新点）
     update15mData(value) {
         const now = new Date();
         const currentTimeInMs = now.getHours() * 3600000 + now.getMinutes() * 60000 + now.getSeconds() * 1000;
@@ -708,10 +708,11 @@ class SalaryCalculator {
             }
         }
         
-        // 计算当前秒数对应的时间戳（精确到秒）
+        // 计算当前时间对应的10秒槽位
         const effectiveStartMs = Math.max(windowStartMs, startTimeInMs);
         const currentSecond = now.getSeconds();
-        const currentTimestamp = now.getHours() * 3600000 + now.getMinutes() * 60000 + currentSecond * 1000;
+        const currentSlotSecond = Math.floor(currentSecond / 10) * 10; // 对齐到10秒
+        const currentTimestamp = now.getHours() * 3600000 + now.getMinutes() * 60000 + currentSlotSecond * 1000;
         
         // 精确度处理
         let preciseValue;
@@ -721,13 +722,13 @@ class SalaryCalculator {
             preciseValue = Math.round(value * 100) / 100;
         }
         
-        // 计算当前秒对应的时间字符串
+        // 计算当前10秒槽位对应的时间字符串
         const hours = now.getHours();
         const minutes = now.getMinutes();
-        const seconds = currentSecond;
+        const seconds = currentSlotSecond;
         const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         
-        // 检查是否需要添加新点（每秒一个新点）
+        // 检查是否需要添加新点（每10秒一个新点）
         if (this.chartData15m.length === 0 || this.chartData15m[this.chartData15m.length - 1].timestamp < currentTimestamp) {
             this.chartData15m.push({
                 time: timeStr,
@@ -735,8 +736,8 @@ class SalaryCalculator {
                 timestamp: currentTimestamp
             });
             
-            // 限制最多900个点（15分钟 = 900秒）
-            if (this.chartData15m.length > 900) {
+            // 限制最多90个点（15分钟 = 90个10秒）
+            if (this.chartData15m.length > 90) {
                 this.chartData15m.shift();
             }
             
@@ -858,7 +859,7 @@ class SalaryCalculator {
                             const parts = value.split(':');
                             if (parts.length === 3) {
                                 const sec = parseInt(parts[2]);
-                                return sec === 0 || sec === 30; // 每30秒显示一次
+                                return sec === 0 || sec === 30; // 每30秒显示一次（00, 30）
                             }
                             return false;
                         }
